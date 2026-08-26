@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>infiniteTripwire</AssemblyName>
+    <RootNamespace>infiniteTripwire</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- Release ships no symbols; Debug keeps them so BepInEx stack traces have line numbers. -->
+    <DebugType Condition=" '$(Configuration)' == 'Release' ">none</DebugType>
+    <DebugType Condition=" '$(Configuration)' == 'Debug' ">portable</DebugType>
+    <Deterministic>true</Deterministic>
+    <NoWarn>$(NoWarn);CS0618;CS0612;CS0414;CS0169;CS0649</NoWarn>
+    <ModVersion>1.1.0</ModVersion>
+    <EftManaged>..\..\..\EscapeFromTarkov_Data\Managed</EftManaged>
+    <BepInExCore>..\..\..\BepInEx\core</BepInExCore>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EFT / game -->
+    <Reference Include="Assembly-CSharp"><HintPath>$(EftManaged)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Comfort"><HintPath>$(EftManaged)\Comfort.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Sirenix.Serialization"><HintPath>$(EftManaged)\Sirenix.Serialization.dll</HintPath><Private>false</Private></Reference>
+
+    <!-- Unity -->
+    <Reference Include="UnityEngine"><HintPath>$(EftManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(EftManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+
+    <!-- BepInEx / Harmony -->
+    <Reference Include="BepInEx"><HintPath>$(BepInExCore)\BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(BepInExCore)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Generated into obj/ (not the source tree) so a fresh clone builds without a pre-existing file. -->
+  <Target Name="GeneratePluginInfo" BeforeTargets="BeforeCompile">
+    <PropertyGroup>
+      <_PluginInfoFile>$(IntermediateOutputPath)PluginInfo.g.cs</_PluginInfoFile>
+    </PropertyGroup>
+    <WriteLinesToFile
+      File="$(_PluginInfoFile)"
+      Lines="namespace infiniteTripwire { internal static class PluginInfo { public const string Version = &quot;$(ModVersion)&quot;%3B } }"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_PluginInfoFile)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="FinalizeBuild" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <ItemGroup>
+      <_OutputFiles Include="$(TargetDir)*.dll" />
+      <!-- Debug deploys symbols so BepInEx stack traces carry line numbers. -->
+      <_OutputFiles Include="$(TargetDir)*.pdb" Condition=" '$(Configuration)' == 'Debug' " />
+    </ItemGroup>
+    <!-- Wipe staging so a Release zip can never pick up a stale Debug pdb (or vice versa). -->
+    <RemoveDir Directories="$(MSBuildProjectDirectory)/../build/InfiniteTripwire" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)/../build/InfiniteTripwire/BepInEx/plugins/InfiniteTripwire" />
+    <Copy SourceFiles="@(_OutputFiles)"
+          DestinationFolder="$(MSBuildProjectDirectory)/../build/InfiniteTripwire/BepInEx/plugins/InfiniteTripwire" />
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+      <_BuildArtifacts Include="$(MSBuildProjectDirectory)/../build/InfiniteTripwire/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_BuildArtifacts)"
+          DestinationFolder="$(MSBuildProjectDirectory)/../../../%(RecursiveDir)"
+          Condition="'$(Configuration)' == 'Debug'"
+    />
+    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)/../build/InfiniteTripwire"
+                  DestinationFile="$(MSBuildProjectDirectory)/../build/InfiniteTripwire-$(ModVersion).zip"
+                  Overwrite="true"
+                  Condition="'$(Configuration)' == 'Release'"
+    />
+    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)/../build/InfiniteTripwire"
+                  DestinationFile="$(MSBuildProjectDirectory)/../build/InfiniteTripwire-debug-$(ModVersion).zip"
+                  Overwrite="true"
+                  Condition="'$(Configuration)' == 'Debug'"
+    />
+  </Target>
+
+</Project>

@@ -1,0 +1,15 @@
+# General AI files
+CLAUDE.md
+AGENTS.md
+.github/instructions/
+
+# build artifacts
+build/
+*.zip
+
+# IDE / intermediate
+.idea/
+bin/
+obj/
+
+*.g.cs
