@@ -1,0 +1,13 @@
+# Normalize line endings to LF in the repo and on checkout, on every platform.
+# Without this, a clone with core.autocrlf=true reintroduces CRLF and the churn returns.
+* text=auto eol=lf
+
+*.cs     text eol=lf
+*.csproj text eol=lf
+*.sln    text eol=lf
+*.md     text eol=lf
+
+# Build artifacts / binaries - never translate.
+*.dll binary
+*.pdb binary
+*.zip binary
