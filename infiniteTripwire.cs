@@ -1,4 +1,5 @@
 ﻿using BepInEx;
+using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using Diz.LanguageExtensions;
 using Comfort.Common;
@@ -6,7 +7,6 @@ using EFT;
 using EFT.InventoryLogic;
 using EFT.SynchronizableObjects;
 using HarmonyLib;
-using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -14,7 +14,8 @@ using System.Reflection.Emit;
 
 namespace infiniteTripwire
 {
-    [BepInPlugin("ciallo.inftripwire", "Tripwire Grenade Modify", "1.0.0")]
+    [BepInPlugin("ciallo.inftripwire", "Tripwire Grenade Improvement", "1.1.0")]
+    [BepInDependency("com.SPT.core", "4.1.0")]
     public class NoTripwirePlugin : BaseUnityPlugin
     {
         private static ConfigEntry<bool> noConsumption;
@@ -25,6 +26,8 @@ namespace infiniteTripwire
 
         private void Awake()
         {
+            CheckSPTVersion();
+			
             noConsumption = Config.Bind("General", "Infinite Tripwire", true);
             boomDelayReduce = Config.Bind("General", "Reduce Explosion Delay (?)", 0f,
                 new ConfigDescription("Decrease time (in second) before boom. Higher than grenade's fuse value will make instant explosion." +
@@ -127,25 +130,59 @@ namespace infiniteTripwire
         }
 
         // 修改绊雷预爆时间
-        [HarmonyPatch(typeof(TripwireSynchronizableObject), "ActivateGrenade")]
-        class PatchMethod6
+        [HarmonyPatch(typeof(TripwireSynchronizableObject), nameof(TripwireSynchronizableObject.ActivateGrenade))]
+		class PatchMethod6
+		{
+			[HarmonyTranspiler]
+			static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+			{
+				var codes = new List<CodeInstruction>(instructions);
+
+				for (int i = 0; i < codes.Count; i++)
+				{
+					if (!(codes[i].operand is MethodInfo mi))
+						continue;
+
+					if (mi.Name != "Create")
+						continue;
+
+					if (mi.DeclaringType != typeof(GrenadeFactory))
+						continue;
+
+					for (int j = i - 1; j >= 0 && j > i - 8; j--)
+					{
+						if (codes[j].opcode != OpCodes.Ldc_R4)
+							continue;
+
+						codes[j] = new CodeInstruction(
+							OpCodes.Ldsfld,
+							AccessTools.Field(
+								typeof(NoTripwirePlugin),
+								"boomDelayReduce"));
+
+						codes.Insert(
+							j + 1,
+							new CodeInstruction(
+								OpCodes.Callvirt,
+								AccessTools.PropertyGetter(
+									typeof(ConfigEntry<float>),
+									"Value")));
+
+						return codes;
+					}
+				}
+				return codes;
+			}
+		}
+
+        // 检查SPT版本
+        private void CheckSPTVersion()
         {
-            [HarmonyTranspiler]
-            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-            {
-                var codes = new List<CodeInstruction>(instructions);
-                for (int i = 0; i < codes.Count; i++)
-                {
-                    if (i == 23 && codes[i].opcode == OpCodes.Ldc_R4)
-                    {
-                        codes[i] = new CodeInstruction(OpCodes.Ldsfld,
-                            AccessTools.Field(typeof(NoTripwirePlugin), "boomDelayReduce"));
-                        codes.Insert(i + 1, new CodeInstruction(OpCodes.Callvirt,
-                            AccessTools.PropertyGetter(typeof(ConfigEntry<float>), "Value")));
-                    }
-                }
-                return codes;
-            }
+            if (!Chainloader.PluginInfos.TryGetValue("com.SPT.core", out var sptCore))
+                Logger.LogWarning("[Tripwire Improvement] SPT Core not found.");
+            var sptVersion = sptCore.Metadata.Version;
+            if (sptVersion.Major > 4 || (sptVersion.Major == 4 && sptVersion.Minor > 1))
+                Logger.LogWarning("[Tripwire Improvement] Plugin mismatch SPT version, some features may not work correctly.");
         }
     }
 }
